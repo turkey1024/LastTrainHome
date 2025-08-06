@@ -1,0 +1,248 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pixel Game</title>
+    <style>
+        /* 保持原有样式不变 */
+        body { margin:0; padding:0; overflow:hidden; background:#000; touch-action:none; }
+        #canvas { display:block; width:100vw; height:100vh; background:#000; outline:none; }
+        #controls { position:fixed; bottom:20px; width:100%; display:flex; justify-content:space-between; pointer-events:none; z-index:100; }
+        .btn-group { display:flex; pointer-events:auto; }
+        .btn { width:60px; height:60px; background:rgba(255,255,255,0.2); border-radius:8px; margin:5px; 
+               display:flex; justify-content:center; align-items:center; color:#fff; font-size:24px; 
+               font-weight:bold; user-select:none; border:2px solid rgba(255,255,255,0.3); touch-action:manipulation; }
+        .btn.active { background:rgba(255,255,255,0.4)!important; transform:scale(0.95)!important; }
+        #arrows { flex-direction:column; margin-left:15px; }
+        #arrows .row { display:flex; justify-content:center; }
+        .arrow { font-size:30px; }
+        #action-btns { flex-direction:column; margin-right:15px; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" tabindex="0"></canvas>
+    
+    <div id="controls">
+        <div class="btn-group" id="arrows">
+            <div class="row">
+                <div class="btn" id="btn-up"><span class="arrow">↑</span></div>
+            </div>
+            <div class="row">
+                <div class="btn" id="btn-left"><span class="arrow">←</span></div>
+                <div class="btn" id="btn-down"><span class="arrow">↓</span></div>
+                <div class="btn" id="btn-right"><span class="arrow">→</span></div>
+            </div>
+        </div>
+        <div class="btn-group" id="action-btns">
+            <div class="btn" id="btn-z">Z</div>
+            <div class="btn" id="btn-x">X</div>
+        </div>
+    </div>
+
+    <script>
+        // 输入状态跟踪器
+        const inputState = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            KeyZ: false,
+            KeyX: false
+        };
+
+        // 配置Emscripten模块 - 关键修改！
+        var Module = {
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                // 精确设置canvas尺寸
+                canvas.width = window.innerWidth * window.devicePixelRatio;
+                canvas.height = window.innerHeight * window.devicePixelRatio;
+                canvas.style.width = '100vw';
+                canvas.style.height = '100vh';
+                canvas.tabIndex = 1;
+                canvas.focus();
+                return canvas;
+            })(),
+            
+            // 关键配置 - 解决黑屏问题
+            noInitialRun: false, // 必须允许自动运行
+            noExitRuntime: true, // 防止运行时退出
+            locateFile: function(path) {
+                if(path.endsWith('.wasm')) {
+                    return 'index.wasm'; // 确保wasm文件路径正确
+                }
+                return path;
+            },
+            
+            // 初始化完成回调
+            onRuntimeInitialized: function() {
+                console.log('Emscripten runtime initialized');
+                
+                // 初始化输入系统
+                setupVirtualButtons();
+                
+                // 确保canvas保持焦点
+                document.getElementById('canvas').focus();
+                
+                // 打印调试信息
+                console.log('Canvas dimensions:', Module.canvas.width, Module.canvas.height);
+                console.log('Game module:', Module);
+            },
+            
+            // 主循环回调 - 关键修复！
+            setStatus: function(text) {
+                console.log('Status:', text);
+            },
+            
+            // 错误处理
+            printErr: function(text) {
+                console.error('Game Error:', text);
+            }
+        };
+
+        // 设置虚拟按钮
+        function setupVirtualButtons() {
+            console.log('Initializing virtual buttons');
+            
+            const keyMap = {
+                'btn-up': 'ArrowUp',
+                'btn-down': 'ArrowDown',
+                'btn-left': 'ArrowLeft',
+                'btn-right': 'ArrowRight',
+                'btn-z': 'KeyZ',
+                'btn-x': 'KeyX'
+            };
+            
+            Object.keys(keyMap).forEach(btnId => {
+                const btn = document.getElementById(btnId);
+                if (!btn) return;
+                
+                const key = keyMap[btnId];
+                let isActive = false;
+                
+                const activate = () => {
+                    if (isActive) return;
+                    isActive = true;
+                    btn.classList.add('active');
+                    inputState[key] = true;
+                    sendKeyEvent(key, true);
+                };
+                
+                const deactivate = () => {
+                    if (!isActive) return;
+                    isActive = false;
+                    btn.classList.remove('active');
+                    inputState[key] = false;
+                    sendKeyEvent(key, false);
+                };
+                
+                // 触摸事件
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    activate();
+                }, { passive: false });
+                
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    deactivate();
+                }, { passive: false });
+                
+                btn.addEventListener('touchcancel', (e) => {
+                    e.preventDefault();
+                    deactivate();
+                }, { passive: false });
+                
+                // 鼠标事件
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    activate();
+                });
+                
+                btn.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    deactivate();
+                });
+                
+                btn.addEventListener('mouseleave', (e) => {
+                    if (isActive) deactivate();
+                });
+            });
+        }
+
+        // 发送键盘事件 - 改进版本
+        function sendKeyEvent(key, isDown) {
+            const eventType = isDown ? 'keydown' : 'keyup';
+            const canvas = document.getElementById('canvas');
+            
+            // 创建完全规范的键盘事件
+            const event = new KeyboardEvent(eventType, {
+                key: key,
+                code: key.startsWith('Arrow') ? key : `Key${key.slice(-1).toUpperCase()}`,
+                keyCode: getKeyCode(key),
+                which: getKeyCode(key),
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                view: window
+            });
+            
+            console.log(`Dispatching ${eventType} for ${key}`);
+            
+            // 优先派发到canvas
+            canvas.focus();
+            canvas.dispatchEvent(event);
+            
+            // 如果没有被处理，派发到window
+            if (!event.defaultPrevented) {
+                window.dispatchEvent(event);
+            }
+            
+            // 尝试直接调用SDL输入处理（如果可用）
+            if (typeof Module['SDL'] !== 'undefined') {
+                const sdlEvent = {
+                    type: isDown ? 768 : 769, // SDL_KEYDOWN/SDL_KEYUP
+                    key: key,
+                    keyCode: getKeyCode(key)
+                };
+                Module.SDL.input(sdlEvent);
+            }
+        }
+
+        // 获取键码
+        function getKeyCode(key) {
+            const keyCodes = {
+                'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39,
+                'KeyZ': 90, 'KeyX': 88
+            };
+            return keyCodes[key] || 0;
+        }
+
+        // 防止页面滚动
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.classList.contains('btn')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // 窗口大小改变时调整canvas大小
+        window.addEventListener('resize', function() {
+            Module.canvas.width = window.innerWidth * window.devicePixelRatio;
+            Module.canvas.height = window.innerHeight * window.devicePixelRatio;
+            Module.canvas.style.width = '100vw';
+            Module.canvas.style.height = '100vh';
+        });
+
+        // 加载游戏脚本
+        var script = document.createElement('script');
+        script.src = 'index.js';
+        script.async = true;
+        script.onerror = function() {
+            console.error('Failed to load game script!');
+            document.body.innerHTML = '<h1 style="color:white;text-align:center;">Failed to load game. Please check if index.js exists.</h1>';
+        };
+        document.body.appendChild(script);
+    </script>
+</body>
+</html>
+
