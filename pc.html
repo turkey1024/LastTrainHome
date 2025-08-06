@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LastTrainHome</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #controls-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        var Module = {
+            canvas: document.getElementById('canvas'),
+            onRuntimeInitialized: function() {
+                setupKeyboardControls();
+            }
+        };
+
+        function setupKeyboardControls() {
+            const activeKeys = new Set();
+
+            // 键盘控制
+            document.addEventListener('keydown', (e) => {
+                if ([37,38,39,40,16,88].includes(e.keyCode)) {
+                    if (!activeKeys.has(e.keyCode)) {
+                        activeKeys.add(e.keyCode);
+                        Module.ccall('js_keydown', null, ['number'], [e.keyCode]);
+                    }
+                    e.preventDefault();
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if ([37,38,39,40,16,88].includes(e.keyCode)) {
+                    activeKeys.delete(e.keyCode);
+                    Module.ccall('js_keyup', null, ['number'], [e.keyCode]);
+                    e.preventDefault();
+                }
+            });
+
+            // 窗口失去焦点时释放所有按键
+            window.addEventListener('blur', () => {
+                activeKeys.forEach(key => {
+                    Module.ccall('js_keyup', null, ['number'], [key]);
+                });
+                activeKeys.clear();
+            });
+        }
+    </script>
+    <script src="index.js"></script>
+</body>
+</html>
