@@ -1,0 +1,6 @@
+LastTrainHome网页移植版
+开源项目，网址懒得贴了
+使用emscripten编译c源码
+源码在source目录里
+目前有无法移动的bug
+www
