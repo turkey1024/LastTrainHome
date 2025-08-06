@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>像素游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .virtual-btn {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: rgba(50,50,50,0.7);
+            border-radius: 8px;
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            border: 3px solid rgba(255,255,255,0.3);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transition: all 0.08s ease;
+            user-select: none;
+        }
+        .virtual-btn:active {
+            transform: scale(0.95);
+            background: rgba(80,80,80,0.9);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border-color: rgba(255,255,255,0.5);
+        }
+        /* 方向键布局 */
+        #btn-up {
+            left: 95px;    /* 左键宽度60px + 间距5px + 左键位置30px */
+            bottom: 95px;   /* 下键高度60px + 间距5px */
+        }
+        #btn-down {
+            left: 95px;
+            bottom: 30px;
+        }
+        #btn-left {
+            left: 30px;
+            bottom: 30px;
+        }
+        #btn-right {
+            left: 160px;   /* 左键30px + 左键60px + 间距5px + 下键60px + 间距5px */
+            bottom: 30px;
+        }
+        /* X键 - 右下角 */
+        #btn-x {
+            right: 30px;
+            bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="controls">
+        <!-- 方向键 -->
+        <div id="btn-up" class="virtual-btn">↑</div>
+        <div id="btn-down" class="virtual-btn">↓</div>
+        <div id="btn-left" class="virtual-btn">←</div>
+        <div id="btn-right" class="virtual-btn">→</div>
+        <!-- X键 -->
+        <div id="btn-x" class="virtual-btn">X</div>
+    </div>
+
+    <script>
+        var Module = {
+            canvas: document.getElementById('canvas'),
+            onRuntimeInitialized: function() {
+                setupControls();
+            }
+        };
+
+        function setupControls() {
+            // 通用按钮绑定函数
+            const bindButton = (element, keyCode) => {
+                const handleStart = () => {
+                    Module.ccall('js_keydown', null, ['number'], [keyCode]);
+                    element.classList.add('active');
+                };
+                
+                const handleEnd = () => {
+                    Module.ccall('js_keyup', null, ['number'], [keyCode]);
+                    element.classList.remove('active');
+                };
+                
+                // 触摸事件
+                element.addEventListener('touchstart', handleStart, {passive: false});
+                element.addEventListener('touchend', handleEnd, {passive: false});
+                
+                // 鼠标事件
+                element.addEventListener('mousedown', handleStart);
+                element.addEventListener('mouseup', handleEnd);
+                element.addEventListener('mouseleave', () => {
+                    if(element.classList.contains('active')) {
+                        handleEnd();
+                    }
+                });
+            };
+
+            // 绑定按键
+            bindButton(document.getElementById('btn-up'), 38);    // 上
+            bindButton(document.getElementById('btn-down'), 40);  // 下
+            bindButton(document.getElementById('btn-left'), 37);  // 左
+            bindButton(document.getElementById('btn-right'), 39); // 右
+            bindButton(document.getElementById('btn-x'), 88);     // X键
+
+            // 防止触摸时页面滚动
+            document.addEventListener('touchmove', (e) => {
+                if(e.target.classList.contains('virtual-btn')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        }
+    </script>
+    <script src="index.js"></script>
+</body>
+</html>
+
